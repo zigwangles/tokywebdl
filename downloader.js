@@ -15,7 +15,7 @@ async function fetchChapters() {
 
   const jsonStr = match[1] + ']'; // append closing bracket if needed
   try {
-    chapters = JSON.parse(jsonStr);
+    chapters = JSON5.parse(jsonStr);
     chapters.shift(); // remove non-chapter entry
     showChapterButtons();
   } catch (e) {
