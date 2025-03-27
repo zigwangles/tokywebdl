@@ -114,90 +114,95 @@ export default function Home() {
 
   return (
     <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
-      <main className="container mx-auto p-4 bg-black text-white min-h-screen">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold">Tokydl</h1>
-          <ThemeToggle />
-        </div>
-        
-        <Card className="max-w-2xl mx-auto bg-gray-900 border-gray-800">
-          <CardHeader>
-            <CardTitle>Import Tokybook URL</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex space-x-2">
-              <Input 
-                placeholder="Enter tokybook.com URL" 
-                value={url}
-                onChange={handleUrlChange}
-                disabled={loading}
-                className="bg-gray-800 border-gray-700"
-              />
-              <Button onClick={handleLoadUrl} disabled={loading} className="bg-gray-700 hover:bg-gray-600">
-                {loading ? 'Loading...' : 'Load'}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {showWarning && (
-          <Card className="mt-6 max-w-2xl mx-auto bg-gray-900 border-gray-800">
-            <CardContent className="p-4">
-              <div className="flex items-start gap-4">
-                <AlertTriangle className="h-5 w-5 text-yellow-400 mt-0.5" />
-                <div>
-                  <h3 className="text-sm font-medium text-yellow-400">Warning</h3>
-                  <p className="text-sm text-gray-300 mt-1">
-                    The website you're trying to access doesn't support a secure connection. Proceed with caution.
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {chapters.length > 0 && (
-          <Card className="mt-6 max-w-2xl mx-auto bg-gray-900 border-gray-800">
+      <main className="min-h-screen px-4 py-8 bg-background">
+        <div className="max-w-2xl mx-auto">
+          <div className="flex justify-between items-center mb-8">
+            <h1 className="text-3xl font-bold text-foreground">Tokydl</h1>
+            <ThemeToggle />
+          </div>
+          
+          <Card className="mb-6">
             <CardHeader>
-              <CardTitle>Available Files</CardTitle>
+              <CardTitle>Import Tokybook URL</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {chapters.map((chapter: Chapter) => (
-                  <div key={chapter.name} className="border-b border-gray-800 pb-4">
-                    <div className="flex justify-between items-center gap-4">
-                      <div>
-                        <p className="font-medium">{chapter.name}</p>
-                        <p className="text-sm text-gray-400">Size: {chapter.size}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm text-gray-300">Time: {chapter.duration}</p>
-                        <p className="text-sm text-gray-400">Speed: {chapter.speed}</p>
-                      </div>
-                      <Button 
-                        onClick={() => handleDownload(chapter)}
-                        className="bg-gray-700 hover:bg-gray-600"
-                        disabled={downloadStatus[chapter.name]?.status === 'downloading'}
-                      >
-                        <Download className="h-4 w-4" />
-                        <span className="ml-2">Download</span>
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+              <div className="flex space-x-2">
+                <Input 
+                  placeholder="Enter tokybook.com URL" 
+                  value={url}
+                  onChange={handleUrlChange}
+                  disabled={loading}
+                />
+                <Button onClick={handleLoadUrl} disabled={loading} variant="default">
+                  {loading ? 'Loading...' : 'Load'}
+                </Button>
               </div>
             </CardContent>
-            <CardFooter className="border-t border-gray-800 pt-4">
-              <Button 
-                onClick={handleDownloadAll} 
-                className="w-full flex justify-center items-center bg-gray-800 hover:bg-gray-700 py-6"
-              >
-                <Download className="mr-2 h-5 w-5" />
-                <span>Download All Files</span>
-              </Button>
-            </CardFooter>
           </Card>
-        )}
+
+          {showWarning && (
+            <Alert variant="destructive" className="mb-6">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Warning</AlertTitle>
+              <AlertDescription>
+                The website you're trying to access doesn't support a secure connection. Proceed with caution.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {error && (
+            <Alert variant="destructive" className="mb-6">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          {chapters.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Available Files</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {chapters.map((chapter: Chapter) => (
+                    <div key={chapter.name} className="p-4 border rounded-md">
+                      <div className="flex justify-between items-center gap-4">
+                        <div>
+                          <p className="font-medium">{chapter.name}</p>
+                          <p className="text-sm text-muted-foreground">Size: {chapter.size}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm">Time: {chapter.duration}</p>
+                          <p className="text-sm text-muted-foreground">Speed: {chapter.speed}</p>
+                        </div>
+                        <Button 
+                          onClick={() => handleDownload(chapter)}
+                          disabled={downloadStatus[chapter.name]?.status === 'downloading'}
+                          variant="secondary"
+                          size="sm"
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          Download
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+              <CardFooter className="flex justify-center border-t p-4">
+                <Button 
+                  onClick={handleDownloadAll} 
+                  variant="default"
+                  className="w-full"
+                >
+                  <Download className="mr-2 h-5 w-5" />
+                  Download All Files
+                </Button>
+              </CardFooter>
+            </Card>
+          )}
+        </div>
       </main>
     </ThemeProvider>
   )
