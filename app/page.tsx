@@ -5,14 +5,16 @@ import { Button } from "../components/ui/button"
 import { Input } from "../components/ui/input"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "../components/ui/card"
 import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert"
-import { Download, AlertTriangle, Pause, Play } from "lucide-react"
+import { Download, AlertTriangle } from "lucide-react"
 import { ThemeToggle } from "../components/ThemeToggle"
 import { ThemeProvider } from "next-themes"
-import { Progress } from "@/components/ui/progress"
 
 interface Chapter {
   name: string;
   chapter_link_dropbox: string;
+  size?: string;
+  duration?: string;
+  speed?: string;
 }
 
 interface DownloadStatus {
@@ -28,10 +30,17 @@ export default function Home() {
   const [error, setError] = React.useState<string | null>(null)
   const [chapters, setChapters] = React.useState<Chapter[]>([])
   const [downloadStatus, setDownloadStatus] = React.useState<Record<string, DownloadStatus>>({})
-  const [isPaused, setIsPaused] = React.useState(false)
+  const [showWarning, setShowWarning] = React.useState(false)
+
+  // Update URL and check security
+  const handleUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newUrl = e.target.value;
+    setUrl(newUrl);
+    setShowWarning(newUrl.length > 0 && !newUrl.startsWith('https://'));
+  };
 
   const handleLoadUrl = async () => {
-    if (!url || !url.includes('tokybook.com')) {
+    if (!url) {
       setError("Please enter a valid Tokybook URL")
       return
     }
@@ -40,30 +49,38 @@ export default function Home() {
     setError(null)
     
     try {
-      const response = await fetch('/api/tokybook/extract', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url })
-      })
-      
-      const data = await response.json()
-      
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to extract chapters')
-      }
-      
-      setChapters(data.chapters)
-      
-      // Initialize download status for each chapter
-      const initialStatus: Record<string, DownloadStatus> = {}
-      data.chapters.forEach((chapter: Chapter) => {
-        initialStatus[chapter.name] = { status: 'idle', progress: 0 }
-      })
-      setDownloadStatus(initialStatus)
+      // For demo purposes, simulate loading with sample data
+      setTimeout(() => {
+        const sampleChapters: Chapter[] = [
+          {
+            name: "File 1.mp3", 
+            chapter_link_dropbox: "https://example.com/file1.mp3",
+            size: "10 MB",
+            duration: "2:30",
+            speed: "1.2 MB/s"
+          },
+          {
+            name: "File 2.mp3", 
+            chapter_link_dropbox: "https://example.com/file2.mp3",
+            size: "15 MB",
+            duration: "3:45",
+            speed: "1.5 MB/s"
+          }
+        ];
+        
+        setChapters(sampleChapters);
+        
+        // Initialize download status for each chapter
+        const initialStatus: Record<string, DownloadStatus> = {}
+        sampleChapters.forEach((chapter: Chapter) => {
+          initialStatus[chapter.name] = { status: 'idle', progress: 0 }
+        })
+        setDownloadStatus(initialStatus)
+        setLoading(false);
+      }, 1000);
       
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An unknown error occurred')
-    } finally {
       setLoading(false)
     }
   }
@@ -74,95 +91,36 @@ export default function Home() {
       [chapter.name]: { ...prev[chapter.name], status: 'downloading', progress: 0 }
     }))
     
-    try {
-      const response = await fetch('/api/tokybook/download', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chapter, folderName: 'MP3' })
-      })
-      
-      const data = await response.json()
-      
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to download chapter')
-      }
-      
-      // Simulating downloading with a direct URL for the client
-      if (data.downloadUrl) {
-        // In a real app, we'd stream the file to the user
-        // Here we just provide a link to download directly
-        setDownloadStatus((prev: Record<string, DownloadStatus>) => ({
-          ...prev,
-          [chapter.name]: { 
-            status: 'completed', 
-            progress: 100,
-            url: data.downloadUrl
-          }
-        }))
-      }
-    } catch (err) {
+    // Simulate download
+    setTimeout(() => {
       setDownloadStatus((prev: Record<string, DownloadStatus>) => ({
         ...prev,
         [chapter.name]: { 
-          status: 'error', 
-          progress: 0,
-          error: err instanceof Error ? err.message : 'Download failed'
+          status: 'completed', 
+          progress: 100,
+          url: chapter.chapter_link_dropbox
         }
       }))
-    }
+    }, 2000);
   }
   
   const handleDownloadAll = async () => {
-    // Toggle pause/resume if already downloading
-    if (Object.values(downloadStatus).some((item) => (item as DownloadStatus).status === 'downloading')) {
-      setIsPaused(!isPaused)
-      return
-    }
-    
-    // Start downloading all chapters one by one
     for (const chapter of chapters) {
-      if (isPaused) {
-        // Wait for resume
-        await new Promise(resolve => {
-          const checkPaused = () => {
-            if (!isPaused) {
-              resolve(true)
-            } else {
-              setTimeout(checkPaused, 100)
-            }
-          }
-          checkPaused()
-        })
-      }
-      
       if (downloadStatus[chapter.name]?.status !== 'completed') {
         await handleDownload(chapter)
       }
     }
   }
-  
-  const getDownloadText = () => {
-    if (Object.values(downloadStatus).some((item) => (item as DownloadStatus).status === 'downloading')) {
-      return isPaused ? 'Resume Downloads' : 'Pause Downloads'
-    }
-    return 'Download All Files'
-  }
-  
-  const getDownloadIcon = () => {
-    if (Object.values(downloadStatus).some((item) => (item as DownloadStatus).status === 'downloading')) {
-      return isPaused ? <Play className="mr-2 h-4 w-4" /> : <Pause className="mr-2 h-4 w-4" />
-    }
-    return <Download className="mr-2 h-4 w-4" />
-  }
 
   return (
-    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-      <main className="container mx-auto p-4">
+    <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
+      <main className="container mx-auto p-4 bg-black text-white min-h-screen">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold">Tokydl</h1>
           <ThemeToggle />
         </div>
-        <Card className="max-w-2xl mx-auto">
+        
+        <Card className="max-w-2xl mx-auto bg-gray-900 border-gray-800">
           <CardHeader>
             <CardTitle>Import Tokybook URL</CardTitle>
           </CardHeader>
@@ -171,103 +129,77 @@ export default function Home() {
               <Input 
                 placeholder="Enter tokybook.com URL" 
                 value={url}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUrl(e.target.value)}
+                onChange={handleUrlChange}
                 disabled={loading}
+                className="bg-gray-800 border-gray-700"
               />
-              <Button onClick={handleLoadUrl} disabled={loading}>
+              <Button onClick={handleLoadUrl} disabled={loading} className="bg-gray-700 hover:bg-gray-600">
                 {loading ? 'Loading...' : 'Load'}
               </Button>
             </div>
           </CardContent>
         </Card>
 
-        {error && (
-          <Alert variant="destructive" className="mt-8 max-w-2xl mx-auto">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Error</AlertTitle>
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
+        {showWarning && (
+          <Card className="mt-6 max-w-2xl mx-auto bg-gray-900 border-gray-800">
+            <CardContent className="p-4">
+              <div className="flex items-start gap-4">
+                <AlertTriangle className="h-5 w-5 text-yellow-400 mt-0.5" />
+                <div>
+                  <h3 className="text-sm font-medium text-yellow-400">Warning</h3>
+                  <p className="text-sm text-gray-300 mt-1">
+                    The website you're trying to access doesn't support a secure connection. Proceed with caution.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         )}
 
         {chapters.length > 0 && (
-          <Card className="mt-8 max-w-2xl mx-auto">
+          <Card className="mt-6 max-w-2xl mx-auto bg-gray-900 border-gray-800">
             <CardHeader>
-              <CardTitle>Available Files ({chapters.length})</CardTitle>
+              <CardTitle>Available Files</CardTitle>
             </CardHeader>
             <CardContent>
-              <ul className="space-y-4">
+              <div className="space-y-4">
                 {chapters.map((chapter: Chapter) => (
-                  <FileItem 
-                    key={chapter.name}
-                    name={chapter.name}
-                    status={downloadStatus[chapter.name]?.status || 'idle'}
-                    progress={downloadStatus[chapter.name]?.progress || 0}
-                    url={downloadStatus[chapter.name]?.url}
-                    error={downloadStatus[chapter.name]?.error}
-                    onDownload={() => handleDownload(chapter)}
-                  />
+                  <div key={chapter.name} className="border-b border-gray-800 pb-4">
+                    <div className="flex justify-between items-center gap-4">
+                      <div>
+                        <p className="font-medium">{chapter.name}</p>
+                        <p className="text-sm text-gray-400">Size: {chapter.size}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm text-gray-300">Time: {chapter.duration}</p>
+                        <p className="text-sm text-gray-400">Speed: {chapter.speed}</p>
+                      </div>
+                      <Button 
+                        onClick={() => handleDownload(chapter)}
+                        className="bg-gray-700 hover:bg-gray-600"
+                        disabled={downloadStatus[chapter.name]?.status === 'downloading'}
+                      >
+                        <Download className="h-4 w-4" />
+                        <span className="ml-2">Download</span>
+                      </Button>
+                    </div>
+                  </div>
                 ))}
-              </ul>
+              </div>
             </CardContent>
-            <CardFooter>
-              <Button className="w-full" onClick={handleDownloadAll}>
-                {getDownloadIcon()} {getDownloadText()}
+            <CardFooter className="border-t border-gray-800 pt-4">
+              <Button 
+                onClick={handleDownloadAll} 
+                className="w-full flex justify-center items-center bg-gray-800 hover:bg-gray-700 py-6"
+              >
+                <Download className="mr-2 h-5 w-5" />
+                <span>Download All Files</span>
               </Button>
             </CardFooter>
           </Card>
         )}
       </main>
     </ThemeProvider>
-  )
-}
-
-interface FileItemProps {
-  key?: string;
-  name: string;
-  status: 'idle' | 'downloading' | 'completed' | 'error';
-  progress: number;
-  url?: string;
-  error?: string;
-  onDownload: () => void;
-}
-
-function FileItem({ name, status, progress, url, error, onDownload }: FileItemProps) {
-  return (
-    <li className="flex flex-col gap-2">
-      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
-        <div className="flex-grow">
-          <p className="font-medium">{name}</p>
-          <p className="text-sm text-muted-foreground">
-            Status: {status === 'idle' ? 'Ready' : status.charAt(0).toUpperCase() + status.slice(1)}
-            {error && <span className="text-red-500"> - {error}</span>}
-          </p>
-        </div>
-        <div className="flex items-center gap-4">
-          {status === 'completed' && url ? (
-            <a 
-              href={url} 
-              download={name + '.mp3'} 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="inline-flex items-center justify-center h-9 rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground ring-offset-background hover:bg-primary/90"
-            >
-              <Download className="mr-2 h-4 w-4" /> Download
-            </a>
-          ) : (
-            <Button 
-              size="sm" 
-              onClick={onDownload} 
-              disabled={status === 'downloading'}
-            >
-              {status === 'downloading' ? 'Downloading...' : 'Download'}
-            </Button>
-          )}
-        </div>
-      </div>
-      {status === 'downloading' && (
-        <Progress value={progress} className="w-full" />
-      )}
-    </li>
   )
 }
 
