@@ -3,22 +3,31 @@ import { NextRequest, NextResponse } from 'next/server';
 interface Chapter {
   name: string;
   chapter_link_dropbox: string;
+  isDirectUrl?: boolean;
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const { chapter, folderName = 'MP3' } = await request.json() as { 
+    const { chapter, isDirectUrl = false } = await request.json() as { 
       chapter: Chapter; 
-      folderName?: string 
+      isDirectUrl?: boolean;
     };
     
     if (!chapter || !chapter.chapter_link_dropbox || !chapter.name) {
       return NextResponse.json({ error: 'Invalid chapter data' }, { status: 400 });
     }
     
-    // In a server environment, we would create a directory and save files
-    // Here we'll simulate a successful download for the front-end to handle
+    if (isDirectUrl) {
+      // For direct URLs, return the URL as is
+      return NextResponse.json({ 
+        success: true, 
+        message: `Ready to download ${chapter.name}`, 
+        name: chapter.name,
+        downloadUrl: chapter.chapter_link_dropbox
+      });
+    }
     
+    // For tokybook URLs, try different base URLs
     const baseUrls = [
       'https://files01.tokybook.com/audio/',
       'https://files02.tokybook.com/audio/'
@@ -28,7 +37,7 @@ export async function POST(request: NextRequest) {
     let error = '';
     let downloadUrl = '';
     
-    // Try each base URL to get metadata, but don't actually download
+    // Try each base URL to get metadata
     for (const baseUrl of baseUrls) {
       const url = baseUrl + chapter.chapter_link_dropbox;
       
