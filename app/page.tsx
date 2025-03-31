@@ -3,9 +3,8 @@
 import * as React from "react"
 import { Button } from "../components/ui/button"
 import { Input } from "../components/ui/input"
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "../components/ui/card"
-import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert"
-import { Download, AlertTriangle } from "lucide-react"
+import { Card, CardContent } from "../components/ui/card"
+import { AlertTriangle, Download } from "lucide-react"
 import { ThemeToggle } from "../components/ThemeToggle"
 import { ThemeProvider } from "next-themes"
 
@@ -32,7 +31,6 @@ export default function Home() {
   const [downloadStatus, setDownloadStatus] = React.useState<Record<string, DownloadStatus>>({})
   const [showWarning, setShowWarning] = React.useState(false)
 
-  // Update URL and check security
   const handleUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newUrl = e.target.value;
     setUrl(newUrl);
@@ -70,7 +68,6 @@ export default function Home() {
         
         setChapters(sampleChapters);
         
-        // Initialize download status for each chapter
         const initialStatus: Record<string, DownloadStatus> = {}
         sampleChapters.forEach((chapter: Chapter) => {
           initialStatus[chapter.name] = { status: 'idle', progress: 0 }
@@ -91,7 +88,6 @@ export default function Home() {
       [chapter.name]: { ...prev[chapter.name], status: 'downloading', progress: 0 }
     }))
     
-    // Simulate download
     setTimeout(() => {
       setDownloadStatus((prev: Record<string, DownloadStatus>) => ({
         ...prev,
@@ -114,26 +110,29 @@ export default function Home() {
 
   return (
     <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
-      <main className="min-h-screen px-4 py-8 bg-background">
-        <div className="max-w-2xl mx-auto">
+      <main className="min-h-screen bg-[#121212]">
+        <div className="max-w-3xl mx-auto px-4 py-6">
           <div className="flex justify-between items-center mb-8">
-            <h1 className="text-3xl font-bold text-foreground">Tokydl</h1>
+            <h1 className="text-2xl font-bold text-white">Tokydl</h1>
             <ThemeToggle />
           </div>
           
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle>Import Tokybook URL</CardTitle>
-            </CardHeader>
-            <CardContent>
+          <Card className="bg-[#1E1E1E] border-0 rounded-xl mb-6">
+            <CardContent className="p-6">
+              <h2 className="text-xl text-white mb-4">Import Tokybook URL</h2>
               <div className="flex space-x-2">
                 <Input 
                   placeholder="Enter tokybook.com URL" 
                   value={url}
                   onChange={handleUrlChange}
                   disabled={loading}
+                  className="bg-[#121212] border-0 text-white placeholder:text-gray-400"
                 />
-                <Button onClick={handleLoadUrl} disabled={loading} variant="default">
+                <Button 
+                  onClick={handleLoadUrl} 
+                  disabled={loading}
+                  className="bg-white text-black hover:bg-gray-200 px-6"
+                >
                   {loading ? 'Loading...' : 'Load'}
                 </Button>
               </div>
@@ -141,65 +140,57 @@ export default function Home() {
           </Card>
 
           {showWarning && (
-            <Alert variant="destructive" className="mb-6">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertTitle>Warning</AlertTitle>
-              <AlertDescription>
-                The website you're trying to access doesn't support a secure connection. Proceed with caution.
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {error && (
-            <Alert variant="destructive" className="mb-6">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertTitle>Error</AlertTitle>
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
+            <div className="mb-6 p-4 bg-[#1E1E1E] rounded-xl">
+              <div className="flex items-center gap-3">
+                <AlertTriangle className="h-5 w-5 text-white" />
+                <div>
+                  <h3 className="text-white font-medium">Warning</h3>
+                  <p className="text-gray-400">
+                    The website you're trying to access doesn't support a secure connection. Proceed with caution.
+                  </p>
+                </div>
+              </div>
+            </div>
           )}
 
           {chapters.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Available Files</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
+            <Card className="bg-[#1E1E1E] border-0 rounded-xl">
+              <CardContent className="p-6">
+                <h2 className="text-xl text-white mb-6">Available Files</h2>
+                <div className="space-y-6">
                   {chapters.map((chapter: Chapter) => (
-                    <div key={chapter.name} className="p-4 border rounded-md">
-                      <div className="flex justify-between items-center gap-4">
-                        <div>
-                          <p className="font-medium">{chapter.name}</p>
-                          <p className="text-sm text-muted-foreground">Size: {chapter.size}</p>
-                        </div>
+                    <div key={chapter.name} className="flex justify-between items-center">
+                      <div>
+                        <p className="text-white font-medium">{chapter.name}</p>
+                        <p className="text-gray-400">Size: {chapter.size}</p>
+                      </div>
+                      <div className="flex items-center gap-6">
                         <div className="text-right">
-                          <p className="text-sm">Time: {chapter.duration}</p>
-                          <p className="text-sm text-muted-foreground">Speed: {chapter.speed}</p>
+                          <p className="text-white">Time: {chapter.duration}</p>
+                          <p className="text-gray-400">Speed: {chapter.speed}</p>
                         </div>
                         <Button 
                           onClick={() => handleDownload(chapter)}
                           disabled={downloadStatus[chapter.name]?.status === 'downloading'}
-                          variant="secondary"
-                          size="sm"
+                          className="bg-white text-black hover:bg-gray-200"
                         >
-                          <Download className="h-4 w-4 mr-2" />
-                          Download
+                          <Download className="h-4 w-4" />
+                          <span className="ml-2">Download</span>
                         </Button>
                       </div>
                     </div>
                   ))}
                 </div>
+                <div className="mt-6 pt-6 border-t border-[#2E2E2E]">
+                  <Button 
+                    onClick={handleDownloadAll} 
+                    className="w-full bg-white text-black hover:bg-gray-200 py-6"
+                  >
+                    <Download className="mr-2 h-5 w-5" />
+                    Download All Files
+                  </Button>
+                </div>
               </CardContent>
-              <CardFooter className="flex justify-center border-t p-4">
-                <Button 
-                  onClick={handleDownloadAll} 
-                  variant="default"
-                  className="w-full"
-                >
-                  <Download className="mr-2 h-5 w-5" />
-                  Download All Files
-                </Button>
-              </CardFooter>
             </Card>
           )}
         </div>
