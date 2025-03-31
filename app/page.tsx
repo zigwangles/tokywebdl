@@ -103,13 +103,19 @@ export default function Home() {
     
     try {
       if (chapter.isDirectUrl) {
-        // For direct URLs, create a download link
+        // For direct URLs, fetch the file and create a blob
+        const response = await fetch(chapter.chapter_link_dropbox);
+        if (!response.ok) throw new Error('Failed to fetch file');
+        
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
-        link.href = chapter.chapter_link_dropbox;
+        link.href = url;
         link.download = chapter.name;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
       } else {
         // For tokybook URLs, use the download API
         const response = await fetch('/api/tokybook/download', {
@@ -124,12 +130,19 @@ export default function Home() {
         
         const data = await response.json();
         if (data.downloadUrl) {
+          // Fetch the actual file from the download URL
+          const fileResponse = await fetch(data.downloadUrl);
+          if (!fileResponse.ok) throw new Error('Failed to fetch file');
+          
+          const blob = await fileResponse.blob();
+          const url = window.URL.createObjectURL(blob);
           const link = document.createElement('a');
-          link.href = data.downloadUrl;
+          link.href = url;
           link.download = chapter.name;
           document.body.appendChild(link);
           link.click();
           document.body.removeChild(link);
+          window.URL.revokeObjectURL(url);
         }
       }
       
