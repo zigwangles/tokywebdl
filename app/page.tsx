@@ -118,13 +118,8 @@ export default function Home() {
       
       const data = await response.json();
       if (data.downloadUrl) {
-        // Create a temporary link to trigger the download
-        const link = document.createElement('a');
-        link.href = data.downloadUrl;
-        link.download = chapter.name;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        // Use the GET endpoint to trigger the download
+        window.location.href = `/api/tokybook/download?url=${encodeURIComponent(data.downloadUrl)}`;
       }
       
       setDownloadStatus((prev: Record<string, DownloadStatus>) => ({
