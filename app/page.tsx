@@ -7,6 +7,7 @@ import { Card, CardContent } from "../components/ui/card"
 import { AlertTriangle, Download } from "lucide-react"
 import { ThemeToggle } from "../components/ThemeToggle"
 import { ThemeProvider } from "next-themes"
+import JSZip from "jszip"
 
 interface Chapter {
   name: string;
@@ -147,7 +148,7 @@ export default function Home() {
       // Get the book name from the first chapter (assuming it's in the format "Book Name - Chapter X")
       const bookName = chapters[0]?.name.split(' - ')[0] || 'Book';
       
-      // Use the download-all API to create a zip file
+      // Use the download-all API to get the stream
       const response = await fetch('/api/tokybook/download-all', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -158,14 +159,76 @@ export default function Home() {
       });
       
       if (!response.ok) {
-        throw new Error('Failed to create zip file');
+        throw new Error('Failed to create download stream');
       }
-      
-      // Get the zip file as a blob
-      const blob = await response.blob();
+
+      // Create a new JSZip instance
+      const zip = new JSZip();
+      const bookFolder = zip.folder(bookName);
+      if (!bookFolder) {
+        throw new Error('Failed to create zip folder');
+      }
+
+      // Read the stream
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('No reader available');
+
+      let currentChapter = '';
+      let currentData: Uint8Array[] = [];
+      let isFirstLine = true;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        // Convert the chunk to text
+        const text = new TextDecoder().decode(value);
+        const lines = text.split('\n');
+
+        for (const line of lines) {
+          if (isFirstLine) {
+            // First line is the book name, skip it
+            isFirstLine = false;
+            continue;
+          }
+
+          if (line.startsWith('ERROR:')) {
+            console.error(line);
+            continue;
+          }
+
+          if (line === '') {
+            // Empty line indicates end of chapter
+            if (currentChapter && currentData.length > 0) {
+              // Combine all chunks and add to zip
+              const combinedData = new Uint8Array(currentData.reduce((acc, chunk) => acc + chunk.length, 0));
+              let offset = 0;
+              for (const chunk of currentData) {
+                combinedData.set(chunk, offset);
+                offset += chunk.length;
+              }
+              bookFolder.file(currentChapter, combinedData);
+              currentData = [];
+            }
+            currentChapter = '';
+            continue;
+          }
+
+          if (!currentChapter) {
+            // This is a chapter name
+            currentChapter = line;
+          } else {
+            // This is chapter data
+            currentData.push(value);
+          }
+        }
+      }
+
+      // Generate the zip file
+      const zipContent = await zip.generateAsync({ type: 'blob' });
       
       // Create a download link and trigger the download
-      const url = window.URL.createObjectURL(blob);
+      const url = window.URL.createObjectURL(zipContent);
       const link = document.createElement('a');
       link.href = url;
       link.download = `${bookName}.zip`;
@@ -289,5 +352,4 @@ export default function Home() {
     </ThemeProvider>
   )
 }
-
 
