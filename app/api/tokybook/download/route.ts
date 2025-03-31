@@ -83,8 +83,26 @@ export async function GET(request: NextRequest) {
   if (!url) {
     return NextResponse.json({ error: 'No URL provided' }, { status: 400 });
   }
-  
-  return NextResponse.json({ 
-    downloadUrl: url 
-  });
+
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      return NextResponse.json({ error: 'Failed to fetch audio file' }, { status: response.status });
+    }
+
+    // Get the filename from the URL
+    const filename = url.split('/').pop() || 'audio.mp3';
+
+    // Create a new Response with the appropriate headers for download
+    return new Response(response.body, {
+      headers: {
+        'Content-Type': 'audio/mpeg',
+        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Content-Length': response.headers.get('Content-Length') || '',
+      },
+    });
+  } catch (error) {
+    console.error('Download error:', error);
+    return NextResponse.json({ error: 'Failed to process download' }, { status: 500 });
+  }
 } 
