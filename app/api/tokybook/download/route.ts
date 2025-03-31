@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import JSZip from 'jszip';
 
 interface Chapter {
   name: string;
@@ -8,101 +9,51 @@ interface Chapter {
 
 export async function POST(request: NextRequest) {
   try {
-    const { chapter, isDirectUrl = false } = await request.json() as { 
-      chapter: Chapter; 
-      isDirectUrl?: boolean;
+    const { chapters, bookName } = await request.json() as { 
+      chapters: Chapter[];
+      bookName: string;
     };
     
-    if (!chapter || !chapter.chapter_link_dropbox || !chapter.name) {
-      return NextResponse.json({ error: 'Invalid chapter data' }, { status: 400 });
+    if (!chapters || !Array.isArray(chapters) || chapters.length === 0) {
+      return NextResponse.json({ error: 'Invalid chapters data' }, { status: 400 });
     }
+
+    const zip = new JSZip();
     
-    if (isDirectUrl) {
-      // For direct URLs, return the URL as is
-      return NextResponse.json({ 
-        success: true, 
-        message: `Ready to download ${chapter.name}`, 
-        name: chapter.name,
-        downloadUrl: chapter.chapter_link_dropbox
-      });
+    // Create a folder with the book name
+    const bookFolder = zip.folder(bookName);
+    if (!bookFolder) {
+      throw new Error('Failed to create zip folder');
     }
-    
-    // For tokybook URLs, try different base URLs
-    const baseUrls = [
-      'https://files01.tokybook.com/audio/',
-      'https://files02.tokybook.com/audio/'
-    ];
-    
-    let downloaded = false;
-    let error = '';
-    let downloadUrl = '';
-    
-    // Try each base URL to get metadata
-    for (const baseUrl of baseUrls) {
-      const url = baseUrl + chapter.chapter_link_dropbox;
-      
+
+    // Download and add each chapter to the zip
+    for (const chapter of chapters) {
       try {
-        const response = await fetch(url, { method: 'HEAD' });
-        
+        const response = await fetch(chapter.chapter_link_dropbox);
         if (!response.ok) {
-          error = `Failed to access ${baseUrl}: ${response.status} ${response.statusText}`;
-          continue;
+          throw new Error(`Failed to download ${chapter.name}`);
         }
         
-        // If the HEAD request succeeds, we assume the download URL is valid
-        downloadUrl = url;
-        downloaded = true;
-        break;
-      } catch (err) {
-        const e = err as Error;
-        error = `Error accessing ${baseUrl}: ${e.message}`;
+        const buffer = await response.arrayBuffer();
+        bookFolder.file(chapter.name, buffer);
+      } catch (error) {
+        console.error(`Error downloading ${chapter.name}:`, error);
+        // Continue with other chapters even if one fails
       }
     }
+
+    // Generate the zip file
+    const zipContent = await zip.generateAsync({ type: 'blob' });
     
-    if (!downloaded) {
-      return NextResponse.json({ error: error || 'Failed to access chapter' }, { status: 500 });
-    }
-    
-    // Return the direct download URL for the client to handle
-    return NextResponse.json({ 
-      success: true, 
-      message: `Ready to download ${chapter.name}`, 
-      name: chapter.name,
-      downloadUrl: downloadUrl
-    });
-  } catch (error) {
-    console.error('Download API error:', error);
-    return NextResponse.json({ error: 'Failed to process download request' }, { status: 500 });
-  }
-}
-
-export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const url = searchParams.get('url');
-  
-  if (!url) {
-    return NextResponse.json({ error: 'No URL provided' }, { status: 400 });
-  }
-
-  try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      return NextResponse.json({ error: 'Failed to fetch audio file' }, { status: response.status });
-    }
-
-    // Get the filename from the URL
-    const filename = url.split('/').pop() || 'audio.mp3';
-
-    // Create a new Response with the appropriate headers for download
-    return new Response(response.body, {
+    // Return the zip file
+    return new Response(zipContent, {
       headers: {
-        'Content-Type': 'audio/mpeg',
-        'Content-Disposition': `attachment; filename="${filename}"`,
-        'Content-Length': response.headers.get('Content-Length') || '',
+        'Content-Type': 'application/zip',
+        'Content-Disposition': `attachment; filename="${bookName}.zip"`,
       },
     });
   } catch (error) {
-    console.error('Download error:', error);
-    return NextResponse.json({ error: 'Failed to process download' }, { status: 500 });
+    console.error('Download All API error:', error);
+    return NextResponse.json({ error: 'Failed to process download request' }, { status: 500 });
   }
 } 
