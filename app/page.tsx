@@ -102,48 +102,29 @@ export default function Home() {
     }))
     
     try {
-      if (chapter.isDirectUrl) {
-        // For direct URLs, fetch the file and create a blob
-        const response = await fetch(chapter.chapter_link_dropbox);
-        if (!response.ok) throw new Error('Failed to fetch file');
-        
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
+      // Use the download API for both direct URLs and tokybook URLs
+      const response = await fetch('/api/tokybook/download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          chapter,
+          isDirectUrl: chapter.isDirectUrl
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to initiate download');
+      }
+      
+      const data = await response.json();
+      if (data.downloadUrl) {
+        // Create a temporary link to trigger the download
         const link = document.createElement('a');
-        link.href = url;
+        link.href = data.downloadUrl;
         link.download = chapter.name;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
-      } else {
-        // For tokybook URLs, use the download API
-        const response = await fetch('/api/tokybook/download', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ chapter })
-        });
-        
-        if (!response.ok) {
-          throw new Error('Failed to initiate download');
-        }
-        
-        const data = await response.json();
-        if (data.downloadUrl) {
-          // Fetch the actual file from the download URL
-          const fileResponse = await fetch(data.downloadUrl);
-          if (!fileResponse.ok) throw new Error('Failed to fetch file');
-          
-          const blob = await fileResponse.blob();
-          const url = window.URL.createObjectURL(blob);
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = chapter.name;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          window.URL.revokeObjectURL(url);
-        }
       }
       
       setDownloadStatus((prev: Record<string, DownloadStatus>) => ({
