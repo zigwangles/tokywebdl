@@ -14,6 +14,7 @@ interface Chapter {
   size?: string;
   duration?: string;
   speed?: string;
+  isDirectUrl?: boolean;
 }
 
 interface DownloadStatus {
@@ -39,7 +40,7 @@ export default function Home() {
 
   const handleLoadUrl = async () => {
     if (!url) {
-      setError("Please enter a valid Tokybook URL")
+      setError("Please enter a valid URL or list of URLs")
       return
     }
 
@@ -47,34 +48,46 @@ export default function Home() {
     setError(null)
     
     try {
-      // For demo purposes, simulate loading with sample data
-      setTimeout(() => {
-        const sampleChapters: Chapter[] = [
-          {
-            name: "File 1.mp3", 
-            chapter_link_dropbox: "https://example.com/file1.mp3",
-            size: "10 MB",
-            duration: "2:30",
-            speed: "1.2 MB/s"
-          },
-          {
-            name: "File 2.mp3", 
-            chapter_link_dropbox: "https://example.com/file2.mp3",
-            size: "15 MB",
-            duration: "3:45",
-            speed: "1.5 MB/s"
-          }
-        ];
-        
-        setChapters(sampleChapters);
-        
-        const initialStatus: Record<string, DownloadStatus> = {}
-        sampleChapters.forEach((chapter: Chapter) => {
-          initialStatus[chapter.name] = { status: 'idle', progress: 0 }
-        })
-        setDownloadStatus(initialStatus)
+      // Check if the input is a list of URLs (one per line)
+      const urls = url.split('\n').map(u => u.trim()).filter(u => u);
+      
+      if (urls.length === 0) {
+        setError("No valid URLs found");
         setLoading(false);
-      }, 1000);
+        return;
+      }
+
+      // If it's a single URL and it's from tokybook.com, use the extract API
+      if (urls.length === 1 && urls[0].includes('tokybook.com')) {
+        const response = await fetch('/api/tokybook/extract', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: urls[0] })
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to extract chapters');
+        }
+        
+        const data = await response.json();
+        setChapters(data.chapters);
+      } else {
+        // Handle direct file URLs
+        const chapters: Chapter[] = urls.map((url, index) => ({
+          name: `File ${index + 1}.mp3`,
+          chapter_link_dropbox: url,
+          isDirectUrl: true
+        }));
+        setChapters(chapters);
+      }
+      
+      // Initialize download status for all chapters
+      const initialStatus: Record<string, DownloadStatus> = {}
+      chapters.forEach((chapter: Chapter) => {
+        initialStatus[chapter.name] = { status: 'idle', progress: 0 }
+      })
+      setDownloadStatus(initialStatus)
+      setLoading(false);
       
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An unknown error occurred')
@@ -88,7 +101,38 @@ export default function Home() {
       [chapter.name]: { ...prev[chapter.name], status: 'downloading', progress: 0 }
     }))
     
-    setTimeout(() => {
+    try {
+      if (chapter.isDirectUrl) {
+        // For direct URLs, create a download link
+        const link = document.createElement('a');
+        link.href = chapter.chapter_link_dropbox;
+        link.download = chapter.name;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } else {
+        // For tokybook URLs, use the download API
+        const response = await fetch('/api/tokybook/download', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ chapter })
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to initiate download');
+        }
+        
+        const data = await response.json();
+        if (data.downloadUrl) {
+          const link = document.createElement('a');
+          link.href = data.downloadUrl;
+          link.download = chapter.name;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        }
+      }
+      
       setDownloadStatus((prev: Record<string, DownloadStatus>) => ({
         ...prev,
         [chapter.name]: { 
@@ -97,7 +141,16 @@ export default function Home() {
           url: chapter.chapter_link_dropbox
         }
       }))
-    }, 2000);
+    } catch (error) {
+      setDownloadStatus((prev: Record<string, DownloadStatus>) => ({
+        ...prev,
+        [chapter.name]: { 
+          status: 'error', 
+          progress: 0,
+          error: error instanceof Error ? error.message : 'Download failed'
+        }
+      }))
+    }
   }
   
   const handleDownloadAll = async () => {
@@ -122,7 +175,7 @@ export default function Home() {
               <h2 className="text-xl text-white mb-4">Import Tokybook URL</h2>
               <div className="flex space-x-2">
                 <Input 
-                  placeholder="Enter tokybook.com URL" 
+                  placeholder="Enter tokybook.com URL or paste multiple file URLs (one per line)" 
                   value={url}
                   onChange={handleUrlChange}
                   disabled={loading}
