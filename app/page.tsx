@@ -143,10 +143,59 @@ export default function Home() {
   }
   
   const handleDownloadAll = async () => {
-    for (const chapter of chapters) {
-      if (downloadStatus[chapter.name]?.status !== 'completed') {
-        await handleDownload(chapter)
+    try {
+      // Get the book name from the first chapter (assuming it's in the format "Book Name - Chapter X")
+      const bookName = chapters[0]?.name.split(' - ')[0] || 'Book';
+      
+      // Use the download-all API to create a zip file
+      const response = await fetch('/api/tokybook/download-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          chapters,
+          bookName
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to create zip file');
       }
+      
+      // Get the zip file as a blob
+      const blob = await response.blob();
+      
+      // Create a download link and trigger the download
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${bookName}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      // Update status for all chapters
+      const newStatus: Record<string, DownloadStatus> = {};
+      chapters.forEach((chapter: Chapter) => {
+        newStatus[chapter.name] = { 
+          status: 'completed', 
+          progress: 100,
+          url: chapter.chapter_link_dropbox
+        };
+      });
+      setDownloadStatus(newStatus);
+    } catch (error) {
+      console.error('Download All error:', error);
+      // Update status to error for all chapters
+      const newStatus: Record<string, DownloadStatus> = {};
+      chapters.forEach((chapter: Chapter) => {
+        newStatus[chapter.name] = { 
+          status: 'error', 
+          progress: 0,
+          error: error instanceof Error ? error.message : 'Download failed'
+        };
+      });
+      setDownloadStatus(newStatus);
     }
   }
 
@@ -240,4 +289,5 @@ export default function Home() {
     </ThemeProvider>
   )
 }
+
 
