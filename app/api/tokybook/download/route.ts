@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import JSZip from 'jszip';
 
 interface Chapter {
   name: string;
@@ -18,38 +17,54 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid chapters data' }, { status: 400 });
     }
 
-    const zip = new JSZip();
-    
-    // Create a folder with the book name
-    const bookFolder = zip.folder(bookName);
-    if (!bookFolder) {
-      throw new Error('Failed to create zip folder');
-    }
-
-    // Download and add each chapter to the zip
-    for (const chapter of chapters) {
-      try {
-        const response = await fetch(chapter.chapter_link_dropbox);
-        if (!response.ok) {
-          throw new Error(`Failed to download ${chapter.name}`);
+    // Create a ReadableStream to handle the downloads
+    const stream = new ReadableStream({
+      async start(controller) {
+        try {
+          // Send the book name as a header
+          controller.enqueue(new TextEncoder().encode(bookName + '\n'));
+          
+          // Download and send each chapter
+          for (const chapter of chapters) {
+            try {
+              const response = await fetch(chapter.chapter_link_dropbox);
+              if (!response.ok) {
+                throw new Error(`Failed to download ${chapter.name}`);
+              }
+              
+              // Send the chapter name
+              controller.enqueue(new TextEncoder().encode(chapter.name + '\n'));
+              
+              // Stream the audio data
+              const reader = response.body?.getReader();
+              if (!reader) throw new Error('No reader available');
+              
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                controller.enqueue(value);
+              }
+              
+              // Send a delimiter between chapters
+              controller.enqueue(new TextEncoder().encode('\n'));
+            } catch (error) {
+              console.error(`Error downloading ${chapter.name}:`, error);
+              controller.enqueue(new TextEncoder().encode(`ERROR: ${chapter.name}\n`));
+            }
+          }
+          
+          controller.close();
+        } catch (error) {
+          controller.error(error);
         }
-        
-        const buffer = await response.arrayBuffer();
-        bookFolder.file(chapter.name, buffer);
-      } catch (error) {
-        console.error(`Error downloading ${chapter.name}:`, error);
-        // Continue with other chapters even if one fails
       }
-    }
+    });
 
-    // Generate the zip file
-    const zipContent = await zip.generateAsync({ type: 'blob' });
-    
-    // Return the zip file
-    return new Response(zipContent, {
+    // Return the stream with appropriate headers
+    return new Response(stream, {
       headers: {
-        'Content-Type': 'application/zip',
-        'Content-Disposition': `attachment; filename="${bookName}.zip"`,
+        'Content-Type': 'application/octet-stream',
+        'Content-Disposition': `attachment; filename="${bookName}.txt"`,
       },
     });
   } catch (error) {
